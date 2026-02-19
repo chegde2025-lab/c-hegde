@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Reserve Table Loading Guide - Insurance Claims</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    margin: 40px;
+    background-color: #f4f6f9;
+    line-height: 1.6;
+}
+
+h1 {
+    text-align: center;
+    color: #1f3c88;
+}
+
+.section {
+    background: white;
+    padding: 25px;
+    margin-bottom: 35px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+h2 {
+    color: #2c3e50;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+th, td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+}
+
+th {
+    background-color: #e8f0ff;
+}
+
+.flow-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.box {
+    background-color: #e8f0ff;
+    border: 2px solid #1f3c88;
+    border-radius: 8px;
+    padding: 15px 25px;
+    margin: 10px 0;
+    width: 320px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.arrow {
+    font-size: 26px;
+    color: #1f3c88;
+}
+
+.note {
+    background: #fff4e6;
+    padding: 12px;
+    margin-top: 15px;
+    border-left: 4px solid #ff9800;
+}
+
+.code {
+    background: #f1f1f1;
+    padding: 10px;
+    font-family: monospace;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1>When Should Reserve Tables Be Loaded?</h1>
+
+<div class="section">
+<h2>1. What Does Loading Reserve Table Mean?</h2>
+<p>
+Loading reserve tables means creating, updating, or recalculating financial
+liabilities associated with a claim. It ensures that unpaid claim obligations
+are accurately tracked in the system.
+</p>
+
+<div class="note">
+Reserve tables must be loaded whenever financial liability changes.
+</div>
+</div>
+
+<div class="section">
+<h2>2. Event-Based Reserve Loading Triggers</h2>
+
+<table>
+<tr>
+<th>Event</th>
+<th>Load Required?</th>
+<th>Reason</th>
+</tr>
+
+<tr>
+<td>contactRoleChanged</td>
+<td>No</td>
+<td>No financial impact</td>
+</tr>
+
+<tr>
+<td>claimChanged</td>
+<td>Sometimes</td>
+<td>If coverage or loss details affect estimate</td>
+</tr>
+
+<tr>
+<td>claimStatusChanged → OPEN</td>
+<td>Yes</td>
+<td>Initialize reserve rows</td>
+</tr>
+
+<tr>
+<td>reserveChanged</td>
+<td>Yes</td>
+<td>Core financial update</td>
+</tr>
+
+<tr>
+<td>paymentChanged</td>
+<td>Yes</td>
+<td>Deduct from outstanding reserve</td>
+</tr>
+
+<tr>
+<td>claimStatusChanged → CLOSED</td>
+<td>Yes</td>
+<td>Release remaining reserve</td>
+</tr>
+
+<tr>
+<td>Month-End Close</td>
+<td>Yes</td>
+<td>Financial reporting & actuarial review</td>
+</tr>
+
+<tr>
+<td>Claim Reopened</td>
+<td>Yes</td>
+<td>Reinitialize or increase reserves</td>
+</tr>
+
+</table>
+</div>
+
+<div class="section">
+<h2>3. Operational Flow Diagram</h2>
+
+<div class="flow-container">
+
+<div class="box">Claim Created</div>
+<div class="arrow">↓</div>
+
+<div class="box">claimStatusChanged → OPEN</div>
+<div class="arrow">↓</div>
+
+<div class="box">Load Initial Reserve (Indemnity + LAE)</div>
+<div class="arrow">↓</div>
+
+<div class="box">Adjuster Updates Estimate</div>
+<div class="arrow">↓</div>
+
+<div class="box">reserveChanged → Update Reserve Table</div>
+<div class="arrow">↓</div>
+
+<div class="box">paymentChanged → Deduct from Reserve</div>
+<div class="arrow">↓</div>
+
+<div class="box">claimStatusChanged → CLOSED</div>
+<div class="arrow">↓</div>
+
+<div class="box">Release Remaining Reserve</div>
+
+</div>
+
+</div>
+
+<div class="section">
+<h2>4. Technical Transaction Example</h2>
+
+<div class="code">
+BEGIN TRANSACTION<br>
+Update Reserve Table<br>
+Update Claim Incurred Amount<br>
+Insert Reserve History Record<br>
+Commit Transaction<br>
+Publish reserveChanged Event
+</div>
+
+</div>
+
+<div class="section">
+<h2>5. Month-End / Financial Close Process</h2>
+
+<p>
+At month-end, reserve tables must be loaded to:
+</p>
+
+<ul>
+<li>Calculate total case reserves</li>
+<li>Calculate IBNR reserves</li>
+<li>Update loss ratio</li>
+<li>Genera
