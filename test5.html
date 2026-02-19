@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OpenReserveSet - Insurance Reserve Architecture</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f4f6f9;
+            line-height: 1.6;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0px 5px 15px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        pre {
+            background: #272822;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 10px;
+        }
+        table, th, td {
+            border: 1px solid #ccc;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #2c3e50;
+            color: white;
+        }
+        .highlight {
+            background: #eaf2ff;
+            padding: 10px;
+            border-left: 5px solid #2c3e50;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+<h1>OpenReserveSet - Insurance Reserve System</h1>
+
+<div class="section">
+<h2>1. What is OpenReserveSet?</h2>
+<div class="highlight">
+OpenReserveSet represents all active (OPEN) reserves for a claim at a given point in time.
+It excludes closed, voided, or fully settled reserves.
+</div>
+</div>
+
+<div class="section">
+<h2>2. Core Tables Involved</h2>
+<ul>
+    <li>Claim</li>
+    <li>Policy</li>
+    <li>Exposure</li>
+    <li>Vehicle</li>
+    <li>VehicleIncident</li>
+    <li>Role</li>
+    <li>Reserve</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>3. Reserve Table Structure</h2>
+<pre>
+reserve_id
+claim_id
+exposure_id
+cost_type
+cost_category
+amount
+currency
+status (OPEN / CLOSED)
+created_date
+</pre>
+</div>
+
+<div class="section">
+<h2>4. Steps to Create OpenReserveSet</h2>
+
+<h3>Step 1: Validate Claim</h3>
+<pre>
+SELECT * 
+FROM claim
+WHERE claim_id = :claimId
+AND status = 'OPEN';
+</pre>
+
+<h3>Step 2: Validate Policy Coverage</h3>
+<pre>
+SELECT *
+FROM policy
+WHERE policy_id = claim.policy_id
+AND loss_date BETWEEN effective_date AND expiry_date;
+</pre>
+
+<h3>Step 3: Fetch Open Exposures</h3>
+<pre>
+SELECT *
+FROM exposure
+WHERE claim_id = :claimId
+AND status = 'OPEN';
+</pre>
+
+<h3>Step 4: Insert Reserve</h3>
+<pre>
+INSERT INTO reserve (
+    reserve_id,
+    claim_id,
+    exposure_id,
+    cost_type,
+    cost_category,
+    amount,
+    currency,
+    status,
+    created_date
+)
+VALUES (
+    seq_reserve.nextval,
+    :claimId,
+    :exposureId,
+    'INDEMNITY',
+    'VEHICLE_DAMAGE',
+    50000,
+    'INR',
+    'OPEN',
+    SYSDATE
+);
+</pre>
+
+</div>
+
+<div class="section">
+<h2>5. Create OpenReserveSet View</h2>
+<pre>
+CREATE VIEW open_reserve_set AS
+SELECT
+    claim_id,
+    exposure_id,
+    SUM(amount) AS total_open_reserve
+FROM reserve
+WHERE status = 'OPEN'
+GROUP BY claim_id, exposure_id;
+</pre>
+</div>
+
+<div class="section">
+<h2>6. Example Scenario</h2>
+
+<table>
+<tr>
+    <th>Exposure Type</th>
+    <th>Reserve Amount</th>
+</tr>
+<tr>
+    <td>Vehicle Damage</td>
+    <td>₹80,000</td>
+</tr>
+<tr>
+    <td>Bodily Injury</td>
+    <td>₹1,20,000</td>
+</tr>
+<tr>
+    <th>Total Open Reserve</th>
+    <th>₹2,00,000</th>
+</tr>
+</table>
+
+</div>
+
+<div class="section">
+<h2>7. Formula</h2>
+<div class="highlight">
+OpenReserveSet = Sum(All Reserves) - Closed Reserves - Voided Reserves
+</div>
+</div>
+
+</div>
+
+</body>
+</html>

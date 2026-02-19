@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CloseReserveSet - Insurance Reserve Architecture</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f4f6f9;
+            line-height: 1.6;
+        }
+        h1, h2, h3 {
+            color: #1f3c88;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0px 5px 15px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        pre {
+            background: #272822;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 10px;
+        }
+        table, th, td {
+            border: 1px solid #ccc;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #1f3c88;
+            color: white;
+        }
+        .highlight {
+            background: #eef3ff;
+            padding: 10px;
+            border-left: 5px solid #1f3c88;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+<h1>CloseReserveSet - Insurance Reserve System</h1>
+
+<div class="section">
+<h2>1. What is CloseReserveSet?</h2>
+<div class="highlight">
+CloseReserveSet represents all reserves that are financially closed.
+These reserves are fully paid, manually closed, or exposure/claim closed.
+</div>
+</div>
+
+<div class="section">
+<h2>2. Core Tables Involved</h2>
+<ul>
+    <li>Claim</li>
+    <li>Policy</li>
+    <li>Exposure</li>
+    <li>Vehicle</li>
+    <li>VehicleIncident</li>
+    <li>Role</li>
+    <li>Reserve</li>
+    <li>Payment</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>3. Reserve Table Structure</h2>
+<pre>
+reserve_id
+claim_id
+exposure_id
+cost_type
+cost_category
+amount
+currency
+status (OPEN / CLOSED)
+closed_date
+</pre>
+</div>
+
+<div class="section">
+<h2>4. Steps to Create CloseReserveSet</h2>
+
+<h3>Step 1: Identify Fully Paid Reserves</h3>
+<pre>
+SELECT r.reserve_id
+FROM reserve r
+JOIN payment p ON r.reserve_id = p.reserve_id
+GROUP BY r.reserve_id, r.amount
+HAVING SUM(p.amount) >= r.amount;
+</pre>
+
+<h3>Step 2: Update Reserve Status</h3>
+<pre>
+UPDATE reserve
+SET status = 'CLOSED',
+    closed_date = SYSDATE
+WHERE reserve_id = :reserveId;
+</pre>
+
+<h3>Step 3: Close Reserves When Exposure Closed</h3>
+<pre>
+UPDATE reserve
+SET status = 'CLOSED',
+    closed_date = SYSDATE
+WHERE exposure_id IN (
+    SELECT exposure_id
+    FROM exposure
+    WHERE claim_id = :claimId
+    AND status = 'CLOSED'
+);
+</pre>
+
+</div>
+
+<div class="section">
+<h2>5. Create CloseReserveSet View</h2>
+<pre>
+CREATE VIEW close_reserve_set AS
+SELECT
+    claim_id,
+    exposure_id,
+    SUM(amount) AS total_closed_reserve
+FROM reserve
+WHERE status = 'CLOSED'
+GROUP BY claim_id, exposure_id;
+</pre>
+</div>
+
+<div class="section">
+<h2>6. Example Scenario</h2>
+
+<table>
+<tr>
+    <th>Exposure Type</th>
+    <th>Reserve Amount</th>
+    <th>Status</th>
+</tr>
+<tr>
+    <td>Vehicle Damage</td>
+    <td>₹80,000</td>
+    <td>CLOSED</td>
+</tr>
+<tr>
+    <td>Bodily Injury</td>
+    <td>₹1,20,000</td>
+    <td>OPEN</td>
+</tr>
+</table>
+
+</div>
+
+<div class="section">
+<h2>7. Formula</h2>
+<div class="highlight">
+CloseReserveSet = SUM(Reserve Amount WHERE status = 'CLOSED')
+</div>
+</div>
+
+<div class="section">
+<h2>8. Financial Meaning</h2>
+<ul>
+    <li>Represents historical liability</li>
+    <li>Used for reporting and audit</li>
+    <li>Posted to General Ledger</li>
+    <li>Used in actuarial loss triangles</li>
+</ul>
+</div>
+
+</div>
+
+</body>
+</html>
