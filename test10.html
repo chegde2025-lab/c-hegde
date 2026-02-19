@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CompanionClaimSet Documentation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+        }
+        h1, h2, h3 {
+            color: #1f4e79;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ccc;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 3px 6px;
+            display: block;
+            margin: 10px 0;
+        }
+        .section {
+            margin-bottom: 40px;
+        }
+        .highlight {
+            background-color: #eaf3ff;
+            padding: 10px;
+            border-left: 4px solid #1f4e79;
+        }
+    </style>
+</head>
+<body>
+
+<h1>CompanionClaimSet – Technical Documentation</h1>
+
+<div class="section">
+<h2>1. Overview</h2>
+<p>
+A <strong>CompanionClaimSet</strong> is a logical grouping of multiple related claims 
+arising from the same loss event, policy, or insured relationship.
+</p>
+
+<div class="highlight">
+Example: One accident → Multiple injured persons → Multiple claims → One CompanionClaimSet
+</div>
+</div>
+
+<div class="section">
+<h2>2. Business Purpose</h2>
+<ul>
+    <li>Aggregate financial calculation</li>
+    <li>Policy aggregate limit validation</li>
+    <li>Catastrophe reporting</li>
+    <li>Reinsurance reporting</li>
+    <li>Prevent duplicate reserving</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>3. Data Model Structure</h2>
+
+<table>
+<tr>
+    <th>Field</th>
+    <th>Description</th>
+</tr>
+<tr>
+    <td>companion_set_id</td>
+    <td>Unique identifier</td>
+</tr>
+<tr>
+    <td>event_id</td>
+    <td>Common loss event reference</td>
+</tr>
+<tr>
+    <td>policy_id</td>
+    <td>Associated policy</td>
+</tr>
+<tr>
+    <td>primary_claim_id</td>
+    <td>Main claim reference</td>
+</tr>
+<tr>
+    <td>total_reserved</td>
+    <td>Sum of reserves of all claims</td>
+</tr>
+<tr>
+    <td>total_paid</td>
+    <td>Total payments across claims</td>
+</tr>
+<tr>
+    <td>total_outstanding</td>
+    <td>Total Reserved - Total Paid</td>
+</tr>
+<tr>
+    <td>status</td>
+    <td>Open / Closed</td>
+</tr>
+</table>
+
+</div>
+
+<div class="section">
+<h2>4. Financial Calculations</h2>
+
+<p><strong>Total Reserved:</strong></p>
+<code>
+Total Reserved = SUM(Case Reserve + IBNR Reserve)
+</code>
+
+<p><strong>Total Paid:</strong></p>
+<code>
+Total Paid = SUM(All Payments)
+</code>
+
+<p><strong>Outstanding Amount:</strong></p>
+<code>
+Outstanding = Total Reserved - Total Paid
+</code>
+
+</div>
+
+<div class="section">
+<h2>5. Sample Business Scenario</h2>
+
+<table>
+<tr>
+    <th>Claim ID</th>
+    <th>Reserve</th>
+    <th>Paid</th>
+</tr>
+<tr>
+    <td>C101</td>
+    <td>100,000</td>
+    <td>40,000</td>
+</tr>
+<tr>
+    <td>C102</td>
+    <td>200,000</td>
+    <td>150,000</td>
+</tr>
+<tr>
+    <td>C103</td>
+    <td>50,000</td>
+    <td>10,000</td>
+</tr>
+</table>
+
+<p><strong>Aggregated CompanionClaimSet:</strong></p>
+<ul>
+    <li>Total Reserved = 350,000</li>
+    <li>Total Paid = 200,000</li>
+    <li>Outstanding = 150,000</li>
+</ul>
+
+</div>
+
+<div class="section">
+<h2>6. SQL Implementation</h2>
+
+<h3>Step 1 – Identify Related Claims</h3>
+<code>
+SELECT event_id, COUNT(claim_id)
+FROM CLAIMS
+GROUP BY event_id
+HAVING COUNT(claim_id) > 1;
+</code>
+
+<h3>Step 2 – Create CompanionClaimSet Table</h3>
+<code>
+CREATE TABLE COMPANION_CLAIM_SET (
+    companion_set_id NUMBER PRIMARY KEY,
+    event_id NUMBER,
+    policy_id NUMBER,
+    total_reserved NUMBER,
+    total_paid NUMBER,
+    total_outstanding NUMBER,
+    status VARCHAR2(20)
+);
+</code>
+
+<h3>Step 3 – Insert Aggregated Data</h3>
+<code>
+INSERT INTO COMPANION_CLAIM_SET
+SELECT
+    event_id,
+    policy_id,
+    SUM(total_reserved),
+    SUM(total_paid),
+    SUM(total_reserved - total_paid),
+    'OPEN'
+FROM CLAIMS
+GROUP BY event_id, policy_id;
+</code>
+
+</div>
+
+<div class="section">
+<h2>7. Event Triggers</h2>
+<p>CompanionClaimSet recalculation is triggered when:</p>
+<ul>
+    <li>New claim created</li>
+    <li>Reserve changed</li>
+    <li>Payment processed</li>
+    <li>Claim status updated</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>8. Aggregate Limit Validation Example</h2>
+
+<p>If:</p>
+<code>
+Policy Aggregate Limit = 500,000
+CompanionClaimSet Total Reserved = 600,000
+</code>
+
+<p>System Action:</p>
+<ul>
+    <li>Block additional reserves</li>
+    <li>Trigger underwriting alert</li>
+    <li>Send compliance notification</li>
+</ul>
+
+</div>
+
+<div class="section">
+<h2>9. Difference from ClaimChangeSet</h2>
+
+<table>
+<tr>
+    <th>Feature</th>
+    <th>CompanionClaimSet</th>
+    <th>ClaimChangeSet</th>
+</tr>
+<tr>
+    <td>Groups multiple claims</td>
+    <td>Yes</td>
+    <td>No</td>
+</tr>
+<tr>
+    <td>Tracks claim modifications</td>
+    <td>No</td>
+    <td>Yes</td>
+</tr>
+<tr>
+    <td>Performs financial aggregation</td>
+    <td>Yes</td>
+    <td>Partial</td>
+</tr>
+</table>
+
+</div>
+
+<div class="section">
+<h2>10. Summary</h2>
+<p>
+CompanionClaimSet is a financial and logical grouping mechanism used in insurance systems 
+to aggregate related claims for limit validation, catastrophe reporting, and 
+regulatory compliance.
+</p>
+</div>
+
+</body>
+</html>
