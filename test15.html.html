@@ -1,0 +1,261 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>High level details about Sets</title>
+    <style>
+        body { font-family: Arial; margin: 40px; background-color: #f4f6f9; line-height: 1.9; }
+        h1, h2, h3 { color: #1f4e79; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 25px; background: white; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background-color: #1f4e79; color: white; }
+        pre { background: #272822; color: #f8f8f2; padding: 15px; overflow-x: auto; }
+        .section { background: white; padding: 30px; margin-bottom: 40px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        ul { margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<h1>High level details about Sets </h1>
+
+<div class="section">
+<h2>1. Sample Source Data</h2>
+
+<h3>Claims</h3>
+<table>
+<tr><th>claim_id</th><th>claim_number</th><th>loss_date</th><th>status</th><th>last_update_ts</th></tr>
+<tr><td>101</td><td>CLM1001</td><td>2025-02-01</td><td>OPEN</td><td>2025-02-20</td></tr>
+<tr><td>102</td><td>CLM1002</td><td>2025-02-01</td><td>OPEN</td><td>2025-02-20</td></tr>
+<tr><td>103</td><td>CLM1003</td><td>2025-01-15</td><td>CLOSED</td><td>2025-02-18</td></tr>
+</table>
+
+<h3>Exposure</h3>
+<table>
+<tr><th>exposure_id</th><th>claim_id</th><th>coverage_type</th><th>status</th></tr>
+<tr><td>10001</td><td>101</td><td>BI</td><td>OPEN</td></tr>
+<tr><td>10002</td><td>101</td><td>PD</td><td>OPEN</td></tr>
+<tr><td>10003</td><td>102</td><td>BI</td><td>OPEN</td></tr>
+<tr><td>10004</td><td>103</td><td>PD</td><td>CLOSED</td></tr>
+</table>
+
+<h3>Reserve</h3>
+<table>
+<tr><th>exposure_id</th><th>reserve_type</th><th>reserve_amt</th><th>paid_amt</th><th>status</th></tr>
+<tr><td>10001</td><td>Indemnity</td><td>500000</td><td>200000</td><td>OPEN</td></tr>
+<tr><td>10001</td><td>Expense</td><td>100000</td><td>50000</td><td>OPEN</td></tr>
+<tr><td>10002</td><td>Indemnity</td><td>300000</td><td>100000</td><td>OPEN</td></tr>
+<tr><td>10003</td><td>Indemnity</td><td>400000</td><td>150000</td><td>OPEN</td></tr>
+<tr><td>10004</td><td>Indemnity</td><td>200000</td><td>200000</td><td>CLOSED</td></tr>
+</table>
+
+<h3>Recovery</h3>
+<table>
+<tr><th>exposure_id</th><th>recovery_amt</th></tr>
+<tr><td>10001</td><td>50000</td></tr>
+<tr><td>10003</td><td>25000</td></tr>
+</table>
+
+<h3>Place</h3>
+<table>
+<tr><th>place_id</th><th>place_name</th><th>city</th></tr>
+<tr><td>501</td><td>Main Street Junction</td><td>Bangalore</td></tr>
+<tr><td>502</td><td>Highway 44</td><td>Bangalore</td></tr>
+</table>
+
+<h3>PlaceRole</h3>
+<table>
+<tr><th>claim_id</th><th>place_id</th><th>role_type</th></tr>
+<tr><td>101</td><td>501</td><td>LossLocation</td></tr>
+<tr><td>102</td><td>501</td><td>LossLocation</td></tr>
+<tr><td>103</td><td>502</td><td>LossLocation</td></tr>
+</table>
+
+<h3>VehicleIncident</h3>
+<table>
+<tr><th>incident_id</th><th>claim_id</th></tr>
+<tr><td>9001</td><td>101</td></tr>
+<tr><td>9001</td><td>102</td></tr>
+</table>
+
+</div>
+
+<div class="section">
+<h2>2. OpenReserveSet</h2>
+
+<p><strong>Detailed Description:</strong><br>
+OpenReserveSet represents the insurer’s active outstanding financial liability. 
+It is generated at exposure level because reserves are maintained by coverage type. 
+This feed is consumed by actuarial systems, finance reporting platforms, and reinsurance partners.
+Only exposures that are financially active are included.</p>
+
+<p><strong>Business Rules:</strong></p>
+<ul>
+<li>Claim must be OPEN</li>
+<li>Exposure must be OPEN</li>
+<li>Reserve status must be OPEN</li>
+<li>Outstanding amount must be greater than zero</li>
+</ul>
+
+<h3>SQL</h3>
+<pre>
+SELECT c.claim_number, e.exposure_id,
+SUM(r.reserve_amt) - SUM(r.paid_amt)
+- COALESCE(SUM(rec.recovery_amt),0) AS outstanding
+FROM claims c
+JOIN exposure e ON c.claim_id = e.claim_id
+JOIN reserve r ON e.exposure_id = r.exposure_id
+LEFT JOIN recovery rec ON e.exposure_id = rec.exposure_id
+WHERE c.status='OPEN'
+AND e.status='OPEN'
+AND r.status='OPEN'
+GROUP BY c.claim_number, e.exposure_id
+HAVING outstanding > 0;
+</pre>
+
+<h3>XML</h3>
+<pre>
+&lt;OpenReserveSet&gt;
+   &lt;Exposure Claim="CLM1001" ExposureID="10001" Outstanding="300000"/&gt;
+   &lt;Exposure Claim="CLM1001" ExposureID="10002" Outstanding="200000"/&gt;
+   &lt;Exposure Claim="CLM1002" ExposureID="10003" Outstanding="225000"/&gt;
+&lt;/OpenReserveSet&gt;
+</pre>
+
+<p><strong>XML Generation Logic:</strong> Each SQL row becomes one &lt;Exposure&gt; node under root element.</p>
+
+</div>
+
+<div class="section">
+<h2>3. CloseReserveSet</h2>
+
+<p><strong>Detailed Description:</strong><br>
+CloseReserveSet communicates exposures that no longer carry financial liability. 
+It ensures downstream systems stop reserve tracking and financial reporting for closed exposures.</p>
+
+<h3>SQL</h3>
+<pre>
+SELECT c.claim_number, e.exposure_id
+FROM claims c
+JOIN exposure e ON c.claim_id = e.claim_id
+JOIN reserve r ON e.exposure_id = r.exposure_id
+WHERE c.status='CLOSED'
+GROUP BY c.claim_number, e.exposure_id
+HAVING SUM(r.reserve_amt) - SUM(r.paid_amt)=0;
+</pre>
+
+<h3>XML</h3>
+<pre>
+&lt;CloseReserveSet&gt;
+   &lt;Exposure Claim="CLM1003" ExposureID="10004" Outstanding="0"/&gt;
+&lt;/CloseReserveSet&gt;
+</pre>
+
+</div>
+
+<div class="section">
+<h2>4. ClaimChangedSet</h2>
+
+<p><strong>Detailed Description:</strong><br>
+ClaimChangedSet is a delta feed that sends only claims modified after last execution.
+It prevents full data reload and improves system performance.</p>
+
+<h3>SQL</h3>
+<pre>
+SELECT DISTINCT claim_number
+FROM claims
+WHERE last_update_ts > :last_run_time;
+</pre>
+
+<h3>XML</h3>
+<pre>
+&lt;ClaimChangedSet&gt;
+   &lt;Claim ClaimNumber="CLM1001"/&gt;
+&lt;/ClaimChangedSet&gt;
+</pre>
+
+</div>
+
+<div class="section">
+<h2>5. Great American Insurance Set</h2>
+
+<p><strong>Detailed Description:</strong><br>
+This is a carrier-specific hierarchical feed that includes claim-level, exposure-level, 
+and reserve-type-level breakdown. It provides a complete financial view for integration 
+with external carrier systems.</p>
+
+<h3>SQL</h3>
+<pre>
+SELECT c.claim_number, e.exposure_id, r.reserve_type,
+SUM(r.reserve_amt) - SUM(r.paid_amt)
+- COALESCE(SUM(rec.recovery_amt),0) AS outstanding
+FROM claims c
+JOIN exposure e ON c.claim_id = e.claim_id
+JOIN reserve r ON e.exposure_id = r.exposure_id
+LEFT JOIN recovery rec ON e.exposure_id = rec.exposure_id
+GROUP BY c.claim_number, e.exposure_id, r.reserve_type;
+</pre>
+
+<h3>XML</h3>
+<pre>
+&lt;GreatAmericanInsuranceSet&gt;
+   &lt;Claim ClaimNumber="CLM1001"&gt;
+      &lt;Exposure ID="10001"&gt;
+         &lt;Reserve Type="Indemnity" Outstanding="250000"/&gt;
+         &lt;Reserve Type="Expense" Outstanding="50000"/&gt;
+      &lt;/Exposure&gt;
+   &lt;/Claim&gt;
+&lt;/GreatAmericanInsuranceSet&gt;
+</pre>
+
+<p><strong>XML Logic:</strong> Nested grouping by claim → exposure → reserve type.</p>
+
+</div>
+
+<div class="section">
+<h2>6. CompanionClaimChangeSet</h2>
+
+<p><strong>Detailed Description:</strong><br>
+CompanionClaimChangeSet identifies related claims that share common attributes. 
+Claims are considered companions if they share:</p>
+
+<ul>
+<li>Same Incident ID</li>
+<li>OR Same Loss Date</li>
+<li>OR Same Loss Place (PlaceRole → Place)</li>
+</ul>
+
+<p>This ensures all related claims are evaluated together for litigation, fraud detection, and financial exposure aggregation.</p>
+
+<h3>SQL Using OR Logic</h3>
+<pre>
+SELECT DISTINCT c.claim_number
+FROM claims c
+LEFT JOIN vehicleincident vi ON c.claim_id = vi.claim_id
+LEFT JOIN placerole pr ON c.claim_id = pr.claim_id
+WHERE vi.incident_id IN (
+    SELECT incident_id FROM vehicleincident GROUP BY incident_id HAVING COUNT(*) > 1
+)
+OR c.loss_date IN (
+    SELECT loss_date FROM claims GROUP BY loss_date HAVING COUNT(*) > 1
+)
+OR pr.place_id IN (
+    SELECT place_id FROM placerole GROUP BY place_id HAVING COUNT(*) > 1
+);
+</pre>
+
+<h3>XML</h3>
+<pre>
+&lt;CompanionClaimChangeSet&gt;
+   &lt;Claim&gt;CLM1001&lt;/Claim&gt;
+   &lt;Claim&gt;CLM1002&lt;/Claim&gt;
+&lt;/CompanionClaimChangeSet&gt;
+</pre>
+
+<p><strong>XML Generation Logic:</strong> SQL identifies all companion claims using OR conditions. 
+Each qualifying claim becomes one &lt;Claim&gt; node under root element.</p>
+
+</div>
+
+</body>
+</html>
