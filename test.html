@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SET Processing Architecture - Existing vs Proposed</title>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+<style>
+    body {
+        font-family: "Segoe UI", Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f6f9;
+        color: #2c3e50;
+    }
+
+    header {
+        background-color: #1f2d3d;
+        color: white;
+        padding: 20px;
+        text-align: center;
+        font-size: 24px;
+        font-weight: 600;
+    }
+
+    section {
+        padding: 40px;
+        margin: 30px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    h2 {
+        border-left: 6px solid #0078D4;
+        padding-left: 10px;
+        margin-bottom: 20px;
+    }
+
+    .description {
+        margin-bottom: 25px;
+        line-height: 1.6;
+    }
+
+    footer {
+        text-align: center;
+        padding: 20px;
+        font-size: 12px;
+        color: gray;
+    }
+</style>
+
+<script>
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default"
+});
+</script>
+
+</head>
+
+<body>
+
+<header>
+SET Processing Architecture – Existing vs Proposed Design
+</header>
+
+<!-- ================= EXISTING DESIGN ================= -->
+<section>
+<h2>Existing Design Architecture</h2>
+
+<div class="description">
+<strong>Flow Summary:</strong><br>
+1. BLCC IDMC process (scheduled Daily / Weekly / Monthly):<br>
+&nbsp;&nbsp;a) Updates SET_T and SET_ENTRY tables hosted in Oracle database.<br>
+&nbsp;&nbsp;b) Sends set_notification input file to FDR S3 with set id details.<br>
+2. CFLI Cloud parses set_notification file and updates HISTORICAL_SNAPSHOT table.<br>
+3. IDMC workflows read HISTORICAL_SNAPSHOT for unprocessed rows and process SET XML from SET_ENTRY in BLCC.
+</div>
+
+<div class="mermaid">
+flowchart LR
+
+subgraph BLCC["BLCC Environment"]
+    IDMCJOB["BLCC IDMC Scheduled Process"]
+    ORACLE["Oracle Database"]
+    SETT["SET_T Table"]
+    SETENTRY["SET_ENTRY Table
+    Stores SET XML"]
+    S3["FDR S3 Bucket
+    set_notification file"]
+end
+
+subgraph CFLI["CFLI Cloud"]
+    PARSE["Parse set_notification file"]
+    SNAP["HISTORICAL_SNAPSHOT Table"]
+end
+
+subgraph IDMCFLOW["IDMC Workflows"]
+    READ["Read Unprocessed Rows
+    From HISTORICAL_SNAPSHOT"]
+    FETCH["Fetch SET XML
+    From SET_ENTRY in BLCC"]
+    PROCESS["Process Workflows"]
+end
+
+IDMCJOB --> SETT
+IDMCJOB --> SETENTRY
+IDMCJOB --> S3
+
+SETT --> ORACLE
+SETENTRY --> ORACLE
+
+S3 --> PARSE
+PARSE --> SNAP
+SNAP --> READ
+READ --> FETCH
+FETCH --> PROCESS
+
+</div>
+</section>
+
+
+<!-- ================= PROPOSED DESIGN ================= -->
+<section>
+<h2>Proposed AWS-Based Design</h2>
+
+<div class="description">
+<strong>Flow Summary:</strong><br>
+1. AWS EventBridge schedules batch job (Daily / Weekly / Monthly).<br>
+2. AWS Batch Python job runs inside Docker container.<br>
+3. SET XML (OpenReserve, CloseReserve) is generated.<br>
+4. Batch updates SET_T, SET_ENTRY and SET_NOTIFICATION (renamed from HISTORICAL_SNAPSHOT) with set id details.<br>
+5. IDMC reads SET_NOTIFICATION for unprocessed rows and processes SET XML from SET_ENTRY hosted in AWS cloud.
+</div>
+
+<div class="mermaid">
+flowchart LR
+
+subgraph Scheduler["Scheduling Layer"]
+    EB["AWS EventBridge
+    Daily | Weekly | Monthly Rules"]
+end
+
+subgraph Compute["Compute Layer"]
+    BATCH["AWS Batch Job
+    Python Application
+    Docker Container"]
+    XMLGEN["Generate SET XML
+    OpenReserve | CloseReserve"]
+end
+
+subgraph DataLayer["AWS Data Layer"]
+
+    subgraph CoreTables["Core Tables"]
+        SETT2["SET_T Table"]
+        SETENTRY2["SET_ENTRY Table
+        Stores SET XML"]
+    end
+
+    subgraph Notification["Notification Table"]
+        SETNOTIF["SET_NOTIFICATION Table
+        Renamed from HISTORICAL_SNAPSHOT
+        Stores Set ID Details"]
+    end
+
+end
+
+subgraph IDMCFlow2["IDMC Processing Layer"]
+    READ2["Read Unprocessed Rows
+    From SET_NOTIFICATION"]
+    FETCH2["Fetch SET XML
+    From SET_ENTRY"]
+    PROCESS2["Process Workflows"]
+end
+
+EB --> BATCH
+BATCH --> XMLGEN
+
+XMLGEN --> SETT2
+XMLGEN --> SETENTRY2
+XMLGEN --> SETNOTIF
+
+SETNOTIF --> READ2
+READ2 --> FETCH2
+FETCH2 --> PROCESS2
+
+</div>
+</section>
+
+<footer>
+Architecture Documentation | SET Processing Modernization
+</footer>
+
+</body>
+</html>
